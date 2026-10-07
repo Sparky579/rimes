@@ -223,6 +223,21 @@ void CheckUnavailablePassThroughAndNoReplay(bool legacy_broker) {
   Expect(WaitForContext(client.get(), 1001), "connected context bound");
 
   BrokerInputState live;
+  // Both TSF phases must agree to leave idle digits with a dialog host. A
+  // host may suppress native character generation once OnTestKeyDown claims
+  // the key, even if the later OnKeyDown response says pass-through.
+  for (WPARAM digit : {WPARAM{'0'}, WPARAM{'1'}, WPARAM{'9'},
+                       WPARAM{VK_NUMPAD0}, WPARAM{VK_NUMPAD1}, WPARAM{VK_NUMPAD9}}) {
+    Expect(client->HandleKey({BrokerKeyPhase::kTestKeyDown, digit, 0}, nullptr) ==
+               BrokerKeyResult::kPassThrough,
+           "connected idle digit is never pre-claimed");
+    Expect(client->HandleKey({BrokerKeyPhase::kKeyDown, digit, 1}, &live) ==
+               BrokerKeyResult::kPassThrough && !live.has_snapshot,
+           "connected idle digit never creates an IME mutation");
+    Expect(client->HandleKey({BrokerKeyPhase::kTestKeyUp, digit, 0}, nullptr) ==
+               BrokerKeyResult::kPassThrough,
+           "idle digit release remains with the host");
+  }
   Expect(client->HandleKey({BrokerKeyPhase::kKeyDown, 'N', 1}, &live) ==
              BrokerKeyResult::kConsumed,
          "connected KeyDown is processed");

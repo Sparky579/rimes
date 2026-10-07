@@ -26,6 +26,7 @@
 #include "../core/broker_protocol.hpp"
 #include "Diagnostics.h"
 #include "ModuleState.h"
+#include "key_routing.hpp"
 
 namespace rimes::windows::tsf {
 namespace {
@@ -663,7 +664,7 @@ bool LaunchBrokerProcess() noexcept {
 }
 
 bool ShouldOfferKey(WPARAM virtual_key, std::uint32_t modifiers,
-                    bool composing) noexcept {
+                    bool composing, bool capturing) noexcept {
   if (virtual_key == 0 || virtual_key > 0xffU || IsModifierKey(virtual_key)) {
     return false;
   }
@@ -673,6 +674,9 @@ bool ShouldOfferKey(WPARAM virtual_key, std::uint32_t modifiers,
       static_cast<std::uint32_t>(protocol::KeyModifiers::kWindows) |
       static_cast<std::uint32_t>(protocol::KeyModifiers::kAltGr);
   if ((modifiers & kShortcutModifiers) != 0) {
+    return false;
+  }
+  if (ShouldPassIdleNumberKeyToHost(virtual_key, modifiers, composing, capturing)) {
     return false;
   }
   return IsPrintableKey(virtual_key) ||
@@ -876,9 +880,10 @@ class NamedPipeBrokerClient final : public BrokerClient {
 
     const std::uint32_t modifiers = ReadModifiers();
     const bool composing = composing_.load(std::memory_order_acquire);
+    const bool capturing = capturing_.load(std::memory_order_acquire);
     const bool observe_shift = shift && modifier_capable_.load() &&
                                !HasCommandModifiers(modifiers);
-    const bool capture_key = capturing_.load() && !HasCommandModifiers(modifiers) &&
+    const bool capture_key = capturing && !HasCommandModifiers(modifiers) &&
         (event.virtual_key == VK_RETURN || event.virtual_key == VK_BACK ||
          event.virtual_key == VK_ESCAPE);
     if (event.phase == BrokerKeyPhase::kTestKeyDown) {
@@ -888,7 +893,7 @@ class NamedPipeBrokerClient final : public BrokerClient {
       if (!connected_.load(std::memory_order_acquire)) {
         return BrokerKeyResult::kUnavailable;
       }
-      return (observe_shift || ShouldOfferKey(event.virtual_key, modifiers, composing) || capture_key)
+      return (observe_shift || ShouldOfferKey(event.virtual_key, modifiers, composing, capturing) || capture_key)
                  ? BrokerKeyResult::kConsumed
                  : BrokerKeyResult::kPassThrough;
     }
@@ -898,7 +903,7 @@ class NamedPipeBrokerClient final : public BrokerClient {
     if (key_down && (!shift || HasCommandModifiers(modifiers))) CancelShiftTap();
     if ((!key_down && !key_up) ||
         (key_down && !observe_shift &&
-         !ShouldOfferKey(event.virtual_key, modifiers, composing) && !capture_key) ||
+         !ShouldOfferKey(event.virtual_key, modifiers, composing, capturing) && !capture_key) ||
         (key_up && !pressed_keys_[key_index].load(std::memory_order_acquire) &&
          !held_shift_[key_index].load(std::memory_order_acquire))) {
       return BrokerKeyResult::kPassThrough;

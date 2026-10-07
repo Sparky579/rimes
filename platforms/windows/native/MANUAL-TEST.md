@@ -44,8 +44,14 @@ Mark each row pass / fail / n/a. Attach host, DPI, and schema.
 ## Composition and candidates
 
 - [ ] Buffer is closed and capture is off throughout the ordinary-input pass
+- [ ] With no preedit, type `0123456789` from the number row and numpad in
+      RIMES Settings > Connector and another application's settings EDIT
+      control; each digit appears once, with no candidate panel
+- [ ] Shift+number-row punctuation keeps the scheme's punctuation behavior;
+      after a standalone left Shift tap, idle digits still type normally
 - [ ] `nihao` shows preedit and a candidate page; Space commits `你好`
 - [ ] Number keys 1–5 select the matching candidate
+- [ ] Buffer capture still accepts digits without preedit, including ASCII mode
 - [ ] PageDown / PageUp (and `,` / `.` if the schema binds them) change pages
 - [ ] Escape cancels and inserts nothing
 - [ ] Backspace edits the preedit; the candidate list updates
